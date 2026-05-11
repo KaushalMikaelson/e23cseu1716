@@ -4,7 +4,7 @@ import {
   ToggleButton, ToggleButtonGroup, Tooltip,
 } from '@mui/material';
 import StarOutlineIcon from '@mui/icons-material/StarOutline';
-import { useNotificationContext } from '../state/NotificationContext';
+import { useNotificationContext } from '../state/useNotificationContext';
 import { usePriorityInbox } from '../hooks/usePriorityInbox';
 import NotificationCard from './NotificationCard';
 

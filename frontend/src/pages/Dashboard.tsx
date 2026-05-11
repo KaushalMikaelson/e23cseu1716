@@ -4,7 +4,7 @@ import {
 } from '@mui/material';
 import NotificationsNoneIcon from '@mui/icons-material/NotificationsNone';
 import { Log } from '../api/logger';
-import { useNotificationContext } from '../state/NotificationContext';
+import { useNotificationContext } from '../state/useNotificationContext';
 import PriorityInbox from '../components/PriorityInbox';
 import NotificationCard from '../components/NotificationCard';
 

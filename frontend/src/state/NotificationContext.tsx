@@ -1,9 +1,9 @@
-import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
+import React, { createContext, useState, useCallback, ReactNode } from 'react';
 import { Notification, PaginatedNotifications, NotificationType } from '../api/types';
 import { fetchNotifications, fetchPriorityInbox, markNotificationRead } from '../api/notifications';
 import { Log } from '../api/logger';
 
-interface NotificationState {
+export interface NotificationState {
   notifications: Notification[];
   meta: PaginatedNotifications['meta'] | null;
   page: number;
@@ -20,7 +20,7 @@ interface NotificationState {
   setPriorityN: (n: number) => void;
 }
 
-const NotificationContext = createContext<NotificationState | null>(null);
+export const NotificationContext = createContext<NotificationState | null>(null);
 
 export function NotificationProvider({ children }: { children: ReactNode }) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -36,7 +36,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     async (p = page, f: NotificationType | '' = filter) => {
       setLoading(true);
       setError(null);
-      void Log('frontend', 'info', 'state', `Loading notifications — page=${p} filter="${f}"`);
+      void Log('frontend', 'info', 'state', `Loading notifications p=${p}`);
       try {
         const result = await fetchNotifications({ page: p, limit: 6, notification_type: f || undefined });
         setNotifications(result.data);
@@ -44,7 +44,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       } catch (err) {
         const msg = (err as Error).message;
         setError(msg);
-        void Log('frontend', 'error', 'state', `Failed to load notifications: ${msg}`);
+        void Log('frontend', 'error', 'state', `Failed to load: ${msg}`);
       } finally {
         setLoading(false);
       }
@@ -53,12 +53,12 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   );
 
   const loadPriorityInbox = useCallback(async (n = priorityN) => {
-    void Log('frontend', 'info', 'state', `Loading priority inbox — n=${n}`);
+    void Log('frontend', 'info', 'state', `Loading priority inbox n=${n}`);
     try {
       const result = await fetchPriorityInbox(n);
       setPriorityInbox(result.notifications);
     } catch (err) {
-      void Log('frontend', 'error', 'state', `Failed to load priority inbox: ${(err as Error).message}`);
+      void Log('frontend', 'error', 'state', `Priority inbox failed`);
     }
   }, [priorityN]);
 
@@ -71,15 +71,15 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     try {
       // Persist to backend (mock store). External priority inbox IDs may 404 — that's fine.
       await markNotificationRead(id);
-      void Log('frontend', 'info', 'state', `Notification ${id} marked as read`);
+      void Log('frontend', 'info', 'state', `Notification ${id} marked read`);
     } catch {
       // External notifications aren't in the mock store — silently ignore 404.
-      void Log('frontend', 'warn', 'state', `markRead: backend miss for ${id}`);
+      void Log('frontend', 'warn', 'state', `markRead: backend miss ${id}`);
     }
   }, []);
 
   const handleSetFilter = useCallback((type: NotificationType | '') => {
-    void Log('frontend', 'info', 'state', `Filter changed to "${type}"`);
+    void Log('frontend', 'info', 'state', `Filter → "${type}"`);
     setFilter(type);
     setPage(1);
   }, []);
@@ -103,10 +103,4 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       {children}
     </NotificationContext.Provider>
   );
-}
-
-export function useNotificationContext(): NotificationState {
-  const ctx = useContext(NotificationContext);
-  if (!ctx) throw new Error('useNotificationContext must be used inside NotificationProvider');
-  return ctx;
 }

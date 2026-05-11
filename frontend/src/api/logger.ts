@@ -31,8 +31,8 @@ export async function Log(
       body: JSON.stringify({
         stack: 'frontend',
         level,
-        package_name: packageName,
-        message,
+        package: packageName,
+        message: message.slice(0, 48),
       }),
     });
   } catch {

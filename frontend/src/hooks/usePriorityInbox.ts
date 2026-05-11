@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useNotificationContext } from '../state/NotificationContext';
+import { useNotificationContext } from '../state/useNotificationContext';
 import { Log } from '../api/logger';
 
 export function usePriorityInbox() {

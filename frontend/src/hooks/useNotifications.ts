@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useNotificationContext } from '../state/NotificationContext';
+import { useNotificationContext } from '../state/useNotificationContext';
 import { NotificationType } from '../api/types';
 import { Log } from '../api/logger';
 
