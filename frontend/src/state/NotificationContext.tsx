@@ -63,13 +63,18 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   }, [priorityN]);
 
   const markRead = useCallback(async (id: string) => {
+    // Optimistic update — flip isRead immediately in both lists
+    const updater = (n: Notification) => (n.id === id ? { ...n, isRead: true } : n);
+    setNotifications((prev) => prev.map(updater));
+    setPriorityInbox((prev) => prev.map(updater));
+
     try {
-      const updated = await markNotificationRead(id);
-      setNotifications((prev) => prev.map((n) => (n.id === id ? updated : n)));
-      setPriorityInbox((prev) => prev.map((n) => (n.id === id ? updated : n)));
+      // Persist to backend (mock store). External priority inbox IDs may 404 — that's fine.
+      await markNotificationRead(id);
       void Log('frontend', 'info', 'state', `Notification ${id} marked as read`);
-    } catch (err) {
-      void Log('frontend', 'error', 'state', `markRead failed for ${id}: ${(err as Error).message}`);
+    } catch {
+      // External notifications aren't in the mock store — silently ignore 404.
+      void Log('frontend', 'warn', 'state', `markRead: backend miss for ${id}`);
     }
   }, []);
 
