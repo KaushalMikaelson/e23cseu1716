@@ -8,7 +8,7 @@ const router = Router();
 router.get(
   '/',
   (req, res, next) => {
-    Log('backend', 'info', 'route', 'GET /notifications hit');
+    void Log('backend', 'info', 'route', 'GET /notifications hit').catch(() => {});
     next();
   },
   validateNotificationQuery,
@@ -18,7 +18,7 @@ router.get(
 router.get(
   '/:id',
   (req, res, next) => {
-    Log('backend', 'info', 'route', `GET /notifications/${req.params.id} hit`);
+    void Log('backend', 'info', 'route', `GET /notifications/${req.params.id} hit`).catch(() => {});
     next();
   },
   getById,
@@ -27,7 +27,7 @@ router.get(
 router.patch(
   '/:id/read',
   (req, res, next) => {
-    Log('backend', 'info', 'route', `PATCH /notifications/${req.params.id}/read hit`);
+    void Log('backend', 'info', 'route', `PATCH /notifications/${req.params.id}/read hit`).catch(() => {});
     next();
   },
   markRead,

@@ -99,13 +99,37 @@ Marks a notification as read. Idempotent — calling it multiple times is safe.
 
 #### GET `/api/priority-inbox`
 
-Returns the top 10 unread notifications ranked by type weight and recency.
+Returns the top-n unread notifications ranked by type weight and recency.
+
+**Query Parameters**
+
+| Param | Type     | Default |
+|-------|----------|---------|
+| `n`   | `number` | `10`    |
+
+Supported values: `10`, `15`, `20` (max `50`).
+
+**Request**
+```
+GET /api/priority-inbox?n=10
+```
 
 **Response — 200**
 ```json
 {
   "success": true,
-  "data": [ ...top 10 unread notifications... ]
+  "data": {
+    "notifications": [
+      {
+        "id": "b283218f-ea5a-4b7c-93a9-1f2f2406d4b0",
+        "type": "Placement",
+        "message": "CSX Corporation hiring",
+        "isRead": false,
+        "createdAt": "2026-04-22T17:51:18Z"
+      }
+    ],
+    "n": 10
+  }
 }
 ```
 
@@ -352,18 +376,22 @@ Route all `SELECT` queries to a read replica; primary DB only handles writes.
 
 ### Problem with Sequential `notify_all`
 
+The original implementation proposed by the team:
+
 ```python
-# Naive sequential implementation
-def notify_all(students, message):
-    for student in students:
-        db.save_notification(student.id, message)
-        email.send(student.email, message)
+function notify_all(student_ids: array, message: string):
+    for student_id in student_ids:
+        send_email(student_id, message)
+        save_to_db(student_id, message)
+        push_to_app(student_id, message)
 ```
 
-**Issues:**
-- **Scalability:** O(n) sequential — 10,000 students means 10,000 blocking operations.
-- **Partial failure:** If the email server goes down halfway through, some students get notified, others don't. There is no retry mechanism.
-- **Tight coupling:** DB save and email send are in the same transaction. A slow email server holds the DB connection open.
+**Shortcomings:**
+1. **Sequential and blocking** — 50,000 students means 50,000 iterations, each performing 3 I/O operations synchronously. This will time out.
+2. **No failure isolation** — logs show `send_email` failed for 200 students midway. The loop stopped (or skipped silently), leaving 200 students without notification and no way to know which ones.
+3. **No retry mechanism** — there is no retry on transient email failures.
+4. **Tight coupling** — `save_to_db` and `send_email` happen in the same loop iteration. A slow or failed email call blocks the DB save for the next student.
+5. **No partial recovery** — if the process crashes at student 25,000, there is no way to resume from where it left off.
 
 ---
 
@@ -430,3 +458,105 @@ queue.process('deliver_notification', async (job) => {
 - Each delivery job carries a unique `notificationId + studentId` pair as an idempotency key.
 - If a worker crashes mid-job, the queue redelivers it. The worker checks `deliveryLog` before sending to avoid duplicate emails.
 - Exponential backoff (1s → 2s → 4s) avoids hammering a degraded email provider.
+
+---
+
+## Stage 6 — Priority Inbox
+
+### Problem Statement
+
+The product manager wants a Priority Inbox that always shows the top-n most important unread notifications first. Priority is determined by:
+
+- **Type weight:** Placement (3) > Result (2) > Event (1)
+- **Recency:** More recent notifications rank higher within the same type
+
+### Priority Score Formula
+
+```
+priority = typeWeight / (hoursElapsed + 1)
+```
+
+A Placement notification from 1 hour ago scores `3 / 2 = 1.5`.  
+An Event notification from 1 hour ago scores `1 / 2 = 0.5`.  
+A Placement from 10 hours ago scores `3 / 11 ≈ 0.27` — ranked below a recent Event.
+
+This naturally combines type importance and recency in a single comparable value.
+
+---
+
+### Data Source
+
+Notifications are fetched from the evaluation service:
+
+```
+GET http://4.224.186.213/evaluation-service/notifications
+Authorization: Bearer <token>
+```
+
+Example response:
+```json
+{
+  "notifications": [
+    { "ID": "uuid", "Type": "Placement", "Message": "CSX Corporation hiring", "Timestamp": "2026-04-22 17:51:18" },
+    { "ID": "uuid", "Type": "Result",    "Message": "mid-sem",               "Timestamp": "2026-04-22 17:51:30" },
+    { "ID": "uuid", "Type": "Event",     "Message": "farewell",              "Timestamp": "2026-04-22 17:51:06" }
+  ]
+}
+```
+
+All notifications from this API are treated as unread (no `isRead` field in the response).
+
+---
+
+### Algorithm — Min-Heap (O(n log k))
+
+Maintaining the top-k items from a stream of n items is a classic use case for a **min-heap of size k**.
+
+**Why not sort?**  
+Sorting all n notifications is O(n log n). With a min-heap of size k, we only do O(n log k) work — significantly faster when k << n (e.g., k=10, n=50,000).
+
+**How it works:**
+
+```
+for each notification in all_notifications:           // O(n)
+    score = computePriority(notification)
+    if heap.size < k:
+        heap.push(notification, score)                // O(log k)
+    else if score > heap.peek().score:
+        heap.pop()                                    // O(log k)
+        heap.push(notification, score)                // O(log k)
+
+result = heap contents sorted descending              // O(k log k) — negligible
+```
+
+**Total complexity:** O(n log k) time, O(k) space.
+
+---
+
+### Maintaining Top-n as New Notifications Arrive
+
+When a new notification comes in:
+1. Compute its priority score.
+2. If `score > heap.peek().score` (the current minimum in the heap), evict the minimum and insert the new notification.
+3. The heap always holds exactly the top-k items.
+
+This makes each new insertion O(log k) — constant with respect to total notification count.
+
+---
+
+### Implementation
+
+The implementation lives in:
+
+- `backend/src/utils/minHeap.ts` — generic min-heap
+- `backend/src/services/priorityInboxService.ts` — fetch + rank logic
+- `backend/src/controllers/priorityInboxController.ts` — HTTP handler
+- `backend/src/routes/priorityInbox.routes.ts` — route registration
+
+**API endpoint:**
+```
+GET /api/priority-inbox?n=10
+GET /api/priority-inbox?n=15
+GET /api/priority-inbox?n=20
+```
+

@@ -3,16 +3,11 @@ import { useNotificationContext } from '../state/NotificationContext';
 import { NotificationType } from '../api/types';
 import { Log } from '../api/logger';
 
-/**
- * Wraps the notification context and triggers a fetch whenever
- * page or filter changes. Components just call this hook and
- * get back the data — no manual effect wiring needed.
- */
 export function useNotifications() {
   const ctx = useNotificationContext();
 
   useEffect(() => {
-    Log('frontend', 'debug', 'hook', `useNotifications effect — page=${ctx.page} filter="${ctx.filter}"`);
+    void Log('frontend', 'debug', 'hook', `useNotifications — page=${ctx.page} filter="${ctx.filter}"`);
     ctx.loadNotifications(ctx.page, ctx.filter);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ctx.page, ctx.filter]);

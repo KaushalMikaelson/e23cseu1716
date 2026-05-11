@@ -8,13 +8,16 @@ export interface Notification {
   createdAt: string; // ISO 8601
 }
 
-// Shape returned by the evaluation service
+// Shape returned by the evaluation service (uppercase keys as per API contract)
 export interface ExternalNotification {
-  id: string;
-  type: NotificationType;
-  message: string;
-  isRead: boolean;
-  createdAt: string;
+  ID: string;
+  Type: NotificationType;
+  Message: string;
+  Timestamp: string; // format: "2026-04-22 17:51:30"
+}
+
+export interface ExternalNotificationsResponse {
+  notifications: ExternalNotification[];
 }
 
 export interface PaginationMeta {

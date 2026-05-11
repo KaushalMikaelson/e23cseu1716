@@ -1,42 +1,32 @@
 import { Log } from 'logging_middleware';
-import { ExternalNotification, Notification } from '../types';
+import { ExternalNotification, ExternalNotificationsResponse, Notification } from '../types';
 import { MinHeap } from '../utils/minHeap';
 import config from '../config';
 
-// Priority weights per assignment spec
+// Type weights per assignment spec: Placement > Result > Event
 const TYPE_WEIGHT: Record<string, number> = {
   Placement: 3,
   Result: 2,
   Event: 1,
 };
 
-const TOP_K = 10;
-
 /**
- * Computes a combined priority score.
- *
- * Formula: typeWeight / (hoursElapsed + 1)
- *
- * This favours high-weight types AND more recent notifications.
- * Two Placement notifications will be ranked by recency between themselves.
+ * Priority score = typeWeight / (hoursElapsed + 1)
+ * Higher weight + more recent = higher score
  */
-function computePriority(notification: ExternalNotification): number {
-  const weight = TYPE_WEIGHT[notification.type] ?? 1;
-  const ageMs = Date.now() - new Date(notification.createdAt).getTime();
-  const hoursElapsed = ageMs / (1000 * 60 * 60);
+function computePriority(n: ExternalNotification): number {
+  const weight = TYPE_WEIGHT[n.Type] ?? 1;
+  // Timestamp from API: "2026-04-22 17:51:30" — parse as UTC
+  const ts = new Date(n.Timestamp.replace(' ', 'T') + 'Z').getTime();
+  const hoursElapsed = (Date.now() - ts) / (1000 * 60 * 60);
   return weight / (hoursElapsed + 1);
 }
 
-/**
- * Fetches all notifications from the evaluation service.
- */
 async function fetchExternalNotifications(): Promise<ExternalNotification[]> {
   Log('backend', 'info', 'service', 'Fetching notifications from evaluation service');
 
   const response = await fetch(`${config.evaluationBaseUrl}/notifications`, {
-    headers: {
-      Authorization: `Bearer ${config.evaluationApiToken}`,
-    },
+    headers: { Authorization: `Bearer ${config.evaluationApiToken}` },
   });
 
   if (!response.ok) {
@@ -45,36 +35,34 @@ async function fetchExternalNotifications(): Promise<ExternalNotification[]> {
     throw new Error(msg);
   }
 
-  const data = (await response.json()) as ExternalNotification[];
-  Log('backend', 'info', 'service', `Fetched ${data.length} notifications from evaluation service`);
-  return data;
+  const json = (await response.json()) as ExternalNotificationsResponse;
+  const notifications = json.notifications ?? [];
+  Log('backend', 'info', 'service', `Fetched ${notifications.length} notifications from evaluation service`);
+  return notifications;
 }
 
 /**
- * Priority Inbox — returns the top 10 unread notifications ranked by priority.
+ * Returns top-n unread priority notifications.
+ * All notifications from external API are treated as unread (no isRead field).
  *
- * Algorithm: O(n log k) using a min-heap of size k.
- *   - Iterate all unread notifications (O(n))
- *   - Maintain a min-heap of size k (each push/pop is O(log k))
- *   - Result is the heap contents sorted descending
+ * Algorithm: O(n log k) using a min-heap of size k
+ *   - Iterate all notifications: O(n)
+ *   - Each heap op is O(log k)
  */
-export async function getTopPriorityNotifications(): Promise<Notification[]> {
-  Log('backend', 'info', 'service', 'Computing priority inbox');
+export async function getTopPriorityNotifications(topN: number): Promise<Notification[]> {
+  Log('backend', 'info', 'service', `Computing priority inbox — top ${topN}`);
 
   const all = await fetchExternalNotifications();
-  const unread = all.filter((n) => !n.isRead);
-
-  Log('backend', 'debug', 'service', `${unread.length} unread notifications to rank`);
+  Log('backend', 'debug', 'service', `${all.length} total notifications to rank`);
 
   const heap = new MinHeap<ExternalNotification>();
 
-  for (const notification of unread) {
+  for (const notification of all) {
     const score = computePriority(notification);
 
-    if (heap.size < TOP_K) {
+    if (heap.size < topN) {
       heap.push(notification, score);
     } else if (heap.peek() && score > heap.peek()!.priority) {
-      // Current item outranks the heap minimum — swap it in
       heap.pop();
       heap.push(notification, score);
     }
@@ -88,7 +76,14 @@ export async function getTopPriorityNotifications(): Promise<Notification[]> {
   }
   results.sort((a, b) => b.priority - a.priority);
 
-  Log('backend', 'info', 'service', `Priority inbox computed — returning ${results.length} notifications`);
+  Log('backend', 'info', 'service', `Priority inbox ready — ${results.length} notifications`);
 
-  return results.map((r) => r.item as Notification);
+  // Map external shape → internal Notification shape
+  return results.map((r) => ({
+    id: r.item.ID,
+    type: r.item.Type,
+    message: r.item.Message,
+    isRead: false, // external API has no isRead; treat all as unread
+    createdAt: r.item.Timestamp.replace(' ', 'T') + 'Z',
+  }));
 }

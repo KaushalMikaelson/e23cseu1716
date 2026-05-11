@@ -7,7 +7,7 @@ const router = Router();
 router.get(
   '/',
   (req, res, next) => {
-    Log('backend', 'info', 'route', 'GET /priority-inbox hit');
+    void Log('backend', 'info', 'route', `GET /priority-inbox hit — n=${req.query.n ?? 10}`).catch(() => {});
     next();
   },
   getPriorityInbox,

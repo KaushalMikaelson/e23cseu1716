@@ -2,9 +2,7 @@ import { Notification, NotificationType } from '../types';
 import { Log } from 'logging_middleware';
 import { parsePagination, paginateArray } from '../utils/pagination';
 
-// ----------------------------------------------------------------
-// In-memory mock data — replace with a DB layer when integrating a database
-// ----------------------------------------------------------------
+// In-memory mock data — swap with a DB layer when ready
 const notifications: Notification[] = [
   { id: '1', type: 'Placement', message: 'TCS hiring drive scheduled for 15th May at Main Auditorium.', isRead: false, createdAt: '2024-05-10T08:00:00Z' },
   { id: '2', type: 'Result', message: 'Semester 4 results have been declared. Check the student portal.', isRead: false, createdAt: '2024-05-09T12:00:00Z' },
@@ -27,7 +25,7 @@ export interface GetAllOptions {
 }
 
 export function getAllNotifications(opts: GetAllOptions) {
-  Log('backend', 'info', 'service', 'Fetching all notifications with filters');
+  void Log('backend', 'info', 'service', 'Fetching all notifications').catch(() => {});
 
   const { page, limit, notification_type } = opts;
   const { page: p, limit: l } = parsePagination(page, limit);
@@ -35,32 +33,24 @@ export function getAllNotifications(opts: GetAllOptions) {
   let filtered = [...notifications];
 
   if (notification_type) {
-    filtered = filtered.filter((n) => n.type === notification_type);
-    Log('backend', 'debug', 'service', `Filtering by type="${notification_type}", matched ${filtered.length} items`);
+    filtered = filtered.filter((n) => n.type === (notification_type as NotificationType));
+    void Log('backend', 'debug', 'service', `Filtered by type="${notification_type}" — ${filtered.length} results`).catch(() => {});
   }
 
   const result = paginateArray(filtered, p, l);
-  Log('backend', 'info', 'service', `Returning ${result.items.length} of ${result.meta.total} notifications`);
+  void Log('backend', 'info', 'service', `Returning ${result.items.length} / ${result.meta.total}`).catch(() => {});
   return result;
 }
 
 export function getNotificationById(id: string): Notification | null {
-  Log('backend', 'info', 'service', `Looking up notification id="${id}"`);
-  const notification = notifications.find((n) => n.id === id) ?? null;
-  if (!notification) {
-    Log('backend', 'warn', 'service', `Notification id="${id}" not found`);
-  }
-  return notification;
+  void Log('backend', 'info', 'service', `Looking up id="${id}"`).catch(() => {});
+  return notifications.find((n) => n.id === id) ?? null;
 }
 
 export function markAsRead(id: string): Notification | null {
-  Log('backend', 'info', 'service', `Marking notification id="${id}" as read`);
+  void Log('backend', 'info', 'service', `Marking id="${id}" as read`).catch(() => {});
   const notification = notifications.find((n) => n.id === id);
-  if (!notification) {
-    Log('backend', 'warn', 'service', `Cannot mark as read — id="${id}" not found`);
-    return null;
-  }
+  if (!notification) return null;
   notification.isRead = true;
-  Log('backend', 'info', 'service', `Notification id="${id}" marked as read successfully`);
   return notification;
 }

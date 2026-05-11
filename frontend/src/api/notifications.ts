@@ -25,6 +25,11 @@ export function markNotificationRead(id: string): Promise<Notification> {
   return request<Notification>(`/notifications/${id}/read`, { method: 'PATCH' });
 }
 
-export function fetchPriorityInbox(): Promise<Notification[]> {
-  return request<Notification[]>('/priority-inbox');
+export interface PriorityInboxResponse {
+  notifications: Notification[];
+  n: number;
+}
+
+export function fetchPriorityInbox(n = 10): Promise<PriorityInboxResponse> {
+  return request<PriorityInboxResponse>(`/priority-inbox?n=${n}`);
 }
