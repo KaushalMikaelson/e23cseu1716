@@ -34,6 +34,6 @@ export type PackageName = BackendPackage | FrontendPackage | SharedPackage;
 export interface LogPayload {
   stack: Stack;
   level: Level;
-  package_name: PackageName;
+  package: PackageName;
   message: string;
 }

@@ -38,7 +38,7 @@ export function getAllNotifications(opts: GetAllOptions) {
   }
 
   const result = paginateArray(filtered, p, l);
-  void Log('backend', 'info', 'service', `Returning ${result.items.length} / ${result.meta.total}`).catch(() => {});
+  void Log('backend', 'info', 'service', `Returning ${result.data.length} / ${result.meta.total}`).catch(() => {});
   return result;
 }
 

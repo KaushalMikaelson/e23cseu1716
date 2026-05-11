@@ -1,0 +1,6 @@
+{
+  "watch": ["src", "../logging_middleware/dist"],
+  "ext": "ts,js,json",
+  "ignore": ["node_modules"],
+  "exec": "ts-node src/app.ts"
+}

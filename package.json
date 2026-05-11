@@ -1,0 +1,10 @@
+{
+  "name": "affordmed-campus-notify",
+  "version": "1.0.0",
+  "description": "Campus Notification Platform — root runner",
+  "scripts": {
+    "token": "node refresh-token.js",
+    "dev:backend": "cd backend && npm run dev",
+    "dev:frontend": "cd frontend && npm run dev"
+  }
+}

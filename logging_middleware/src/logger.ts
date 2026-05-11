@@ -46,8 +46,8 @@ export async function Log(
   const payload: LogPayload = {
     stack,
     level,
-    package_name: packageName,
-    message,
+    package: packageName,
+    message: message.slice(0, 48),
   };
 
   try {
